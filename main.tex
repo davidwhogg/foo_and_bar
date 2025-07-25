@@ -1,0 +1,108 @@
+\documentclass{article}
+\usepackage[letterpaper]{geometry}
+\usepackage{setspace}
+\usepackage{amsmath, mathrsfs}
+
+% page layout -- the idea is, set text height and width and then set margins to match
+\setlength{\textheight}{8.75in}
+\setlength{\textwidth}{5.00in}
+\setlength{\topmargin}{0.5\paperheight}\addtolength{\topmargin}{-1in}\addtolength{\topmargin}{-0.5\textheight}\addtolength{\topmargin}{-\headsep}\addtolength{\topmargin}{-\headheight}
+\setlength{\oddsidemargin}{0.5\paperwidth}\addtolength{\oddsidemargin}{-1in}\addtolength{\oddsidemargin}{-0.5\textwidth}
+\pagestyle{myheadings}
+\markboth{foo}{\sffamily Hogg / likelihood notes for AEW}
+\setstretch{1.08}\sloppy\sloppypar\raggedbottom\frenchspacing
+
+% math macros
+\newcommand{\given}{\,|\,}
+\DeclareMathOperator{\diag}{diag}
+
+\begin{document}
+
+\paragraph{Setup}
+You have a (possibly multi-dimensional) histogram with $N$ bins or pixels $i$.
+These bins could be healpix-map pixels.
+In each of the $N$ bins $i$ you have $y_i$ objects (each $y_i$ is an integer).
+You have a parameterized model $\mu_i(\theta)$ parameterized by parameters $\theta$ such that, for any setting of the parameters $\theta$, $\mu_i$ is a prediction for the number of objects in each bin (each $\mu_i$ is a continuous variables, not an integer).
+
+You want to know the log-likelihood $\mathscr{L}(\theta)$ of the parameters $\theta$.
+Right now, we are imagining that the log-likelihood can be written as
+\begin{align}
+    \mathscr{L}(\theta) &= \sum_{i=1}^N \ln p(y_i\given\theta) ~.
+\end{align}
+This assumes that the counts in each bin are effectively independent, conditioned on the parameters $\theta$.
+As long as we only have the dipole, and no excess noise, our problem meets this requirement (it is, essentially, the requirement that the data that led to each quasar was different for each quasar; this is not precisely true but it is very close to true).
+
+\paragraph{Poisson likelihood}
+If you believe that the objects are laid down by a Poisson process---that is, if you assume that each object is independently drawn from the same full multi-dimensional probability distribution defined by some set of pixel expectation values $\mu_i$---then the relevant likelihood is Poisson.
+The Poisson log-likelihood is
+\begin{align}
+    \mathscr{L}(\theta) &= K + \sum_{i=1}^N y_i\,\ln\mu_i - \sum_{i=1}^N\mu_i \label{eq:Poiss}~,
+\end{align}
+where $K$ is a constant (technically infinite but we will pretend not to notice that),
+and the log-likelihood obtains its dependence on parameters $\theta$ through the dependence of the expectations $\mu_i$ on $\theta$.
+
+\paragraph{Gaussian likelihood}
+If you have enough expected objects per bin---that is, if the expected number of objects is much larger than unity---then the Gaussian likelihood should be a good approximation to the Poisson likelihood.
+In practice, I am told that you want the $\mu_i$ to be 12-ish or larger, but I have never tested this point.
+In the Gaussian approximation, the approximate Gaussian uncertainty $\sigma_i$ associated with each bin $i$ is $\sigma_i=\sqrt{\mu_i}$.
+The Gaussian log-likelihood is then
+\begin{align}
+    \mathscr{L}(\theta) &= K - \frac{1}{2}\,\sum_{i=1}^N\frac{[y_i - \mu_i]^2}{\mu_i} - \frac{1}{2}\sum_{i=1}^N\ln\mu_i \label{eq:Gauss}~,
+\end{align}
+where $K$ is a constant (different from the Poisson constant),
+the second term is basically $\chi^2$,
+the third term is the log-determinant of a diagonal matrix,
+and (again) the log-likelihood obtains its dependence on parameters $\theta$ through the dependence of the expectations $\mu_i$ on $\theta$.
+This expression \eqref{eq:Gauss} is sometimes seen as weird because the parameters $\theta$ affect both the numerator and the denominator of the ratios in chi-squared.
+This is why the third term is necessary: When you mess with the variance of a Gaussian, you have to keep track of the determinant of the variance tensor.
+Note that this expression \eqref{eq:Gauss} makes the assumption, like \eqref{eq:Poiss}, that the objects (or really the histogram bins) are independently drawn from the model.
+This assumption is equivalent to assuming that the Gaussian noise variance tensor is diagonal (with the $\mu_i$ on the diagonal).
+
+\paragraph{Gaussian-process likelihood}
+Now imagine that the bins are \emph{not} independent; instead there is a large-scale additive noise process that affects all the expectations $\mu_i$ of all the bins in a structured way.
+Let's assume, however, that this noise process is still Gaussian.
+For example, the additive noise process could be a modeled as a linear sum of $M$ structured functions $g_j$ (spherical harmonics even) where the linear coefficients are drawn from a Gaussian (sound familiar?).
+In this case the expectations $\lambda_i$ for the counts in bin $i$ will differ from the original $\mu_i(\theta)$ according to
+\begin{align}
+    \lambda_i &= \mu_i + \sum_{j=1}^M a_j\,g_{ji} \\
+    a_j &\sim \mathscr{N}(0, C_j) ,
+\end{align}
+where the $g_{ji}$ are the functions $g_j$ evaluated at the pixels $i$,
+and each $a_j$ is a random coefficient drawn from a zero-mean Gaussian with variance $C_j$.
+
+Now if you want to think about the total noise process affecting each pixel $i$, there is a term coming from the $a_j$ through the functions $g_{ji}$ and there is a term coming from the Poisson variance $\mu_i$.
+These can be combined into an $N\times N$ variance tensor $\mathsf{V}$ with components
+\begin{align}
+    [\mathsf{V}]_{ii'} &= \mu_i\,\delta_{ii'} + \sum_j g_{ji'}\,C_j\,g_{ji}
+\end{align}
+where $\delta_{ii'}$ is the Kronecker delta (the components of the identity matrix),
+the first term is just the diagonal noise variance used above,
+and the second term handles the correlated noise from the Gaussian process.
+Note that there are linear-algebra objects you can define such that the tensor $V$ is just
+\begin{align}
+    \mathsf{V} &= \diag(\mu) + \mathsf{G}^\top\mathsf{C}\,\mathsf{G} ~,
+\end{align}
+where $\diag()$ makes the diagonal matrix from a list,
+$\mu$ is the $N$-element list ($N$-vector) of the $\mu_i$,
+$\mathsf{G}$ is the $M\times N$ matrix of $g_{ji}$ values,
+and $C$ is the diagonal $M\times M$ matrix of the $C_j$.
+
+Note that in our case, all the $C_j=C$, where $C$ is a constant.
+Nothing about this situation changes when we make $C$ a constant.
+
+With this variance tensor $\mathsf{V}$ in place, the Gaussian likelihood becomes
+\begin{align}
+    \mathscr{L}(\theta) &= K - \frac{1}{2}\,[y - \mu]^\top\,\mathsf{V}^{-1}\,[y - \mu] - \frac{1}{2}\,\ln\det(\mathsf{V}) ~,
+\end{align}
+where $K$ is a constant,
+and $y$ is the $N$-element list ($N$-vector) of the data $y_i$.
+This scalar form is the Gaussian likelihood for a vector $y$ given a mean $\mu$ and variance $\mathsf{V}$.
+
+\paragraph{Implementation notes}
+There are ways to compute the solve $\mathsf{V}^{-1}\,[y - \mu]$ fast (and stably),
+and there are ways to compute the log-determinant fast, using relatives of the Woodbury formula.
+I don't think we have to think much about these things, provided that we work at low \texttt{NSIDE}.
+However, I can't recommend highly enough that you never do \texttt{b.T~@~inv(A)~@~b} but instead always do \texttt{b.T~@~solve(A,~b)}.
+Also, never do \texttt{log(det(A))} but instead always do \texttt{slogdet(A)[1]}.
+
+\end{document}
